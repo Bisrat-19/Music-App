@@ -1,31 +1,28 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
-import '../../services/song_service.dart'; 
+import '../../services/song_service.dart';
 import '../../widgets/custom_button.dart';
 
 class ArtistDashboardScreen extends StatefulWidget {
   const ArtistDashboardScreen({super.key});
 
   @override
-  ArtistDashboardScreenState createState() => ArtistDashboardScreenState(); // Updated to public type
+  ArtistDashboardScreenState createState() => ArtistDashboardScreenState();
 }
 
-class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made public
+class ArtistDashboardScreenState extends State<ArtistDashboardScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   String? _selectedGenre;
-  File? _audioFile;
-  File? _coverImage;
+  PlatformFile? _audioFile;
+  PlatformFile? _coverImage;
   bool _isLoading = false;
 
-  // SongService instance
   final SongService _songService = SongService();
 
-  // List of music genres for the dropdown
   static const List<String> musicGenres = [
     'Pop',
     'Rock',
@@ -54,9 +51,20 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
       allowMultiple: false,
     );
 
-    if (result != null && result.files.single.path != null) {
+    if (result != null && result.files.isNotEmpty) {
+      final platformFile = result.files.single;
+      final fileSize = platformFile.size; // Size in bytes
+      const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+
+      if (fileSize > maxSize) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audio file must be less than 50MB')),
+        );
+        return;
+      }
+
       setState(() {
-        _audioFile = File(result.files.single.path!);
+        _audioFile = platformFile;
       });
     }
   }
@@ -68,9 +76,20 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
       allowMultiple: false,
     );
 
-    if (result != null && result.files.single.path != null) {
+    if (result != null && result.files.isNotEmpty) {
+      final platformFile = result.files.single;
+      final fileSize = platformFile.size; // Size in bytes
+      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+
+      if (fileSize > maxSize) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cover image must be less than 5MB')),
+        );
+        return;
+      }
+
       setState(() {
-        _coverImage = File(result.files.single.path!);
+        _coverImage = platformFile;
       });
     }
   }
@@ -108,7 +127,6 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
         const SnackBar(content: Text('Track uploaded successfully')),
       );
 
-      // Reset form
       setState(() {
         _titleController.clear();
         _descriptionController.clear();
@@ -160,7 +178,6 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
         ),
         body: TabBarView(
           children: [
-            // Upload Music Tab
             SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
               child: Form(
@@ -198,7 +215,6 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
                       },
                     ),
                     const SizedBox(height: 16),
-                    // Genre Dropdown
                     DropdownButtonFormField<String>(
                       value: _selectedGenre,
                       decoration: const InputDecoration(
@@ -274,7 +290,7 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
                               Expanded(
                                 child: Text(
                                   _audioFile != null
-                                      ? _audioFile!.path.split('/').last
+                                      ? _audioFile!.name
                                       : 'Drag and drop your audio file here or click to browse',
                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                         color: Colors.white70,
@@ -290,7 +306,7 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
                             ],
                           ),
                           Text(
-                            'MP3, WAV, or FLAC up to 50MB',
+                            'MP3, WAV, FLAC, or M4A up to 50MB',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: Colors.white70,
                                 ),
@@ -321,7 +337,7 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
                               Expanded(
                                 child: Text(
                                   _coverImage != null
-                                      ? _coverImage!.path.split('/').last
+                                      ? _coverImage!.name
                                       : 'Drag and drop your image file here or click to browse',
                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                         color: Colors.white70,
@@ -360,14 +376,12 @@ class ArtistDashboardScreenState extends State<ArtistDashboardScreen> { // Made 
                 ),
               ),
             ),
-            // My Music Tab (Placeholder)
             const Center(
               child: Text(
                 'My Music coming soon!',
                 style: TextStyle(color: Colors.white),
               ),
             ),
-            // Analytics Tab (Placeholder)
             const Center(
               child: Text(
                 'Analytics coming soon!',
