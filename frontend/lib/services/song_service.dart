@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb; // Add this import
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import '../config/constants.dart';
@@ -10,14 +11,14 @@ class SongService {
     required String genre,
     required String description,
     required String artistId,
-    required PlatformFile audioFile, // Changed to PlatformFile
-    PlatformFile? coverImage, // Changed to PlatformFile
+    required PlatformFile audioFile,
+    PlatformFile? coverImage,
   }) async {
     try {
       print('Uploading song: title=$title, genre=$genre, artistId=$artistId');
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/api/songs/upload'),
+        Uri.parse('$baseUrl/api/songs/upload'), // Fixed baseUrl to BASE_URL
       );
 
       request.headers['Authorization'] = 'Bearer $token';
@@ -28,9 +29,7 @@ class SongService {
       request.fields['description'] = description;
       request.fields['artistId'] = artistId;
 
-      // Handle audio file upload
       if (kIsWeb) {
-        // On web, use bytes from PlatformFile
         print('Adding audio file (web): ${audioFile.name}');
         request.files.add(http.MultipartFile.fromBytes(
           'audio',
@@ -38,12 +37,10 @@ class SongService {
           filename: audioFile.name,
         ));
       } else {
-        // On native platforms, use file path
         print('Adding audio file (native): ${audioFile.path}');
         request.files.add(await http.MultipartFile.fromPath('audio', audioFile.path!));
       }
 
-      // Handle cover image upload (if provided)
       if (coverImage != null) {
         if (kIsWeb) {
           print('Adding cover image (web): ${coverImage.name}');
@@ -67,13 +64,69 @@ class SongService {
         throw Exception('Access denied: You must be an artist to upload tracks');
       } else if (response.statusCode == 401) {
         throw Exception('Authentication failed: Please log in again');
+      } else if (response.statusCode == 404) {
+        throw Exception('Upload endpoint not found. Please check if the backend server is running.');
       } else {
         final responseBody = await response.stream.bytesToString();
-        throw Exception('Failed to upload track: ${response.statusCode} - $responseBody');
+        final errorMessage = responseBody.contains('<pre>')
+            ? responseBody.split('<pre>')[1].split('</pre>')[0]
+            : responseBody;
+        throw Exception('Failed to upload track: ${response.statusCode} - $errorMessage');
       }
     } catch (e) {
       print('Upload error: $e');
       throw Exception('$e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMySongs(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/songs/my-songs'), // Fixed baseUrl to BASE_URL
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> songsJson = jsonDecode(response.body);
+        return songsJson.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to fetch songs: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Fetch songs error: $e');
+      throw Exception('Error fetching songs: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateSongTitle(String token, String songId, String newTitle) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/songs/songs/$songId'), // Fixed path to match backend
+        headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+        body: jsonEncode({'title': newTitle}),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to update song: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Update song error: $e');
+      throw Exception('Error updating song: $e');
+    }
+  }
+
+  Future<void> deleteSong(String token, String songId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/api/songs/songs/$songId'), // Fixed path to match backend
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode != 200) {
+        throw Exception('Failed to delete song: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Delete song error: $e');
+      throw Exception('Error deleting song: $e');
     }
   }
 }
