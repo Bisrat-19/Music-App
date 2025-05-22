@@ -21,7 +21,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit for audio
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
 }).fields([
   { name: 'audio', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },

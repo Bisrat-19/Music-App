@@ -90,7 +90,7 @@ class ArtistProfile extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(width: 80), // Space between Followers and Following
+                const SizedBox(width: 60), // Space between Followers and Following
                 // Following Column
                 Column(
                   children: [
