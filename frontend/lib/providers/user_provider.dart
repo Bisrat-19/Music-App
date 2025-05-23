@@ -10,6 +10,9 @@ class UserProvider with ChangeNotifier {
   UserModel? get user => _user;
   String? get token => _token;
 
+  // Fix the role getter to return the user's role
+  String? get role => _user?.role;
+
   Future<void> initializeUser() async {
     try {
       _token = await _storageService.getToken();

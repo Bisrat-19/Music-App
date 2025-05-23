@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_routes.dart';
 import 'package:frontend/providers/user_provider.dart';
+import 'package:frontend/screens/admin/admin_dashboard_screen.dart'; // Import AdminDashboardScreen
 import 'package:frontend/widgets/custom_button.dart';
 import 'package:provider/provider.dart';
 
@@ -77,12 +78,21 @@ class AdminProfile extends StatelessWidget {
             CustomButton(
               text: 'Admin Dashboard',
               icon: Icons.grid_view,
-              color: const Color(0xFF1DB954), // Green
+              color: const Color(0xFF1DB954),
               isFullWidth: true,
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Admin Dashboard feature coming soon!')),
-                );
+                final userProvider = Provider.of<UserProvider>(context, listen: false);
+                print('Navigating to Admin Dashboard, role: ${userProvider.role}'); // Debug log
+                if (userProvider.role?.toLowerCase() == 'admin') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Access Denied: Admins Only')),
+                  );
+                }
               },
             ),
             const SizedBox(height: 12),
@@ -153,7 +163,7 @@ class AdminProfile extends StatelessWidget {
             // Logout Button (Functional)
             CustomButton(
               text: 'Logout',
-              icon: Icons.logout, // Added logout icon to match design
+              icon: Icons.logout,
               color: const Color(0xFFFF0000), // Red
               isFullWidth: true,
               onPressed: () async {
