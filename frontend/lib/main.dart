@@ -4,24 +4,28 @@ import 'config/theme.dart';
 import 'config/app_routes.dart';
 import 'providers/user_provider.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ArifMusicApp());
+  final userProvider = UserProvider();
+  await userProvider.initializeUser();
+  runApp(ArifMusicApp(userProvider: userProvider));
 }
 
 class ArifMusicApp extends StatelessWidget {
-  const ArifMusicApp({super.key});
+  final UserProvider userProvider;
+
+  const ArifMusicApp({super.key, required this.userProvider});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider.value(value: userProvider),
       ],
       child: MaterialApp(
         title: 'ArifMusic',
         debugShowCheckedModeBanner: false,
-        theme: appTheme, // Ensure theme is set
+        theme: appTheme,
         initialRoute: AppRoutes.welcome,
         onGenerateRoute: AppRoutes.generateRoute,
       ),

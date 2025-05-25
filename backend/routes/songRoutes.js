@@ -8,7 +8,6 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 
-
 // Ensure upload directories exist
 const uploadBasePath = path.join(__dirname, '..', 'uploads');
 const songsPath = path.join(uploadBasePath, 'songs');
@@ -31,7 +30,7 @@ const ensureDirectories = () => {
 
 ensureDirectories();
 
-// Configure multer for file uploads (unchanged)
+// Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.fieldname === 'audio') {
@@ -74,7 +73,35 @@ const uploadErrorHandler = (req, res, next) => {
   });
 };
 
-// Upload song route (unchanged)
+// Fetch all released songs or search by query (public endpoint for Home/Search Screen)
+router.get('/', async (req, res) => {
+  try {
+    const query = req.query.query || ''; // Default to empty string if no query
+    const songs = await Song.find(
+      query
+        ? {
+            $or: [
+              { title: { $regex: query, $options: 'i' } },
+              { 'artistId.fullName': { $regex: query, $options: 'i' } },
+            ],
+          }
+        : {}
+    ).populate('artistId', 'fullName');
+    const songsWithArtistName = songs.map(song => ({
+      _id: song._id,
+      title: song.title,
+      artistName: song.artistId ? song.artistId.fullName : 'Unknown Artist',
+      coverImagePath: song.coverImagePath || null,
+      audioPath: song.audioPath,
+      duration: song.duration || 'N/A', // Add duration if available in your schema
+    }));
+    res.status(200).json(songsWithArtistName);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching songs', error: error.message });
+  }
+});
+
+// Upload song route
 router.post(
   '/upload',
   authMiddleware,
@@ -84,79 +111,63 @@ router.post(
 );
 
 // Get songs by artist
-router.get(
-  '/my-songs',
-  authMiddleware,
-  roleMiddleware('artist'),
-  async (req, res) => {
-    try {
-      const artistId = req.user.id;
-      const songs = await Song.find({ artistId }).select('-__v');
-      res.status(200).json(songs);
-    } catch (error) {
-      res.status(500).json({ message: 'Error fetching songs', error: error.message });
-    }
+router.get('/my-songs', authMiddleware, roleMiddleware('artist'), async (req, res) => {
+  try {
+    const artistId = req.user.id;
+    const songs = await Song.find({ artistId }).select('-__v');
+    res.status(200).json(songs);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching songs', error: error.message });
   }
-);
+});
 
 // Update song title
-router.put(
-  '/songs/:id',
-  authMiddleware,
-  roleMiddleware('artist'),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { title } = req.body;
-      if (!title) {
-        return res.status(400).json({ message: 'Title is required' });
-      }
-      const song = await Song.findOneAndUpdate(
-        { _id: id, artistId: req.user.id },
-        { title },
-        { new: true, runValidators: true }
-      );
-      if (!song) {
-        return res.status(404).json({ message: 'Song not found or not owned by you' });
-      }
-      res.status(200).json({ message: 'Song title updated successfully', song });
-    } catch (error) {
-      res.status(500).json({ message: 'Error updating song', error: error.message });
+router.put('/songs/:id', authMiddleware, roleMiddleware('artist'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title } = req.body;
+    if (!title) {
+      return res.status(400).json({ message: 'Title is required' });
     }
+    const song = await Song.findOneAndUpdate(
+      { _id: id, artistId: req.user.id },
+      { title },
+      { new: true, runValidators: true }
+    );
+    if (!song) {
+      return res.status(404).json({ message: 'Song not found or not owned by you' });
+    }
+    res.status(200).json({ message: 'Song title updated successfully', song });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating song', error: error.message });
   }
-);
+});
 
 // Delete song
-router.delete(
-  '/songs/:id',
-  authMiddleware,
-  roleMiddleware('artist'),
-  async (req, res) => {
-    try {
-      const { id } = req.params;
-      const song = await Song.findOne({ _id: id, artistId: req.user.id });
-      if (!song) {
-        return res.status(404).json({ message: 'Song not found or not owned by you' });
-      }
-      // Delete files from filesystem
-      if (song.audioPath) {
-        const audioFilePath = path.join(__dirname, '..', song.audioPath.replace('/uploads/', 'uploads/'));
-        if (fs.existsSync(audioFilePath)) {
-          fs.unlinkSync(audioFilePath);
-        }
-      }
-      if (song.coverImagePath) {
-        const coverFilePath = path.join(__dirname, '..', song.coverImagePath.replace('/uploads/', 'uploads/'));
-        if (fs.existsSync(coverFilePath)) {
-          fs.unlinkSync(coverFilePath);
-        }
-      }
-      await Song.deleteOne({ _id: id });
-      res.status(200).json({ message: 'Song deleted successfully' });
-    } catch (error) {
-      res.status(500).json({ message: 'Error deleting song', error: error.message });
+router.delete('/songs/:id', authMiddleware, roleMiddleware('artist'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const song = await Song.findOne({ _id: id, artistId: req.user.id });
+    if (!song) {
+      return res.status(404).json({ message: 'Song not found or not owned by you' });
     }
+    if (song.audioPath) {
+      const audioFilePath = path.join(__dirname, '..', song.audioPath.replace('/uploads/', 'uploads/'));
+      if (fs.existsSync(audioFilePath)) {
+        fs.unlinkSync(audioFilePath);
+      }
+    }
+    if (song.coverImagePath) {
+      const coverFilePath = path.join(__dirname, '..', song.coverImagePath.replace('/uploads/', 'uploads/'));
+      if (fs.existsSync(coverFilePath)) {
+        fs.unlinkSync(coverFilePath);
+      }
+    }
+    await Song.deleteOne({ _id: id });
+    res.status(200).json({ message: 'Song deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting song', error: error.message });
   }
-);
+});
 
 module.exports = router;

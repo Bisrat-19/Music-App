@@ -20,7 +20,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/songs', require('./routes/songRoutes'));
-app.use('/api/admin', require('./routes/adminRoutes')); // Add this line
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/artists', require('./routes/artistRoutes'));
+app.use('/api/playlists', require('./routes/playlistRoutes'));
+app.use('/api/watchlist', require('./routes/watchlistRoutes'));
 
 app.get('/', (req, res) => {
   res.send('API is running...');
