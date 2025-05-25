@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/common/home_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/welcome_screen.dart';
@@ -9,6 +10,7 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String mainNav = '/main';
+  static const String songSelection = '/song-selection'; // Add the missing route
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -29,6 +31,9 @@ class AppRoutes {
           builder: (_) => MainNavigation(initialIndex: tab),
         );
 
+      case songSelection:
+        return MaterialPageRoute(builder: (_) => const HomeScreen()); // Map to HomeScreen
+
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
@@ -38,5 +43,3 @@ class AppRoutes {
     }
   }
 }
-
-

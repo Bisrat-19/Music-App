@@ -20,12 +20,14 @@ class HomeScreenState extends State<HomeScreen> {
   Future<List<Map<String, dynamic>>>? _fetchSongsFuture;
   Future<List<Map<String, dynamic>>>? _fetchArtistsFuture;
   Future<List<Map<String, dynamic>>>? _fetchWatchlistFuture;
+  List<Map<String, dynamic>> _watchlist = []; // Local watchlist state
   final HomeService _homeService = HomeService();
   final LibraryService _libraryService = LibraryService();
   late AudioPlayer _audioPlayer;
   String? _currentAudioUrl;
   bool _isPlaying = false;
-  bool _isRefreshing = false;
+  String? _playlistId;
+  Function? _onSongAdded;
 
   @override
   void initState() {
@@ -33,6 +35,13 @@ class HomeScreenState extends State<HomeScreen> {
     _initializeAudioPlayer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeFutures();
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map) {
+        setState(() {
+          _playlistId = args['playlistId'] as String?;
+          _onSongAdded = args['onSongAdded'] as Function?;
+        });
+      }
     });
   }
 
@@ -75,7 +84,9 @@ class HomeScreenState extends State<HomeScreen> {
         await _audioPlayer.setSourceUrl(audioUrl);
         _currentAudioUrl = audioUrl;
       }
-      await _audioPlayer.resume();
+      if (!_isPlaying) {
+        await _audioPlayer.resume();
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error playing audio: $e')),
@@ -89,36 +100,57 @@ class HomeScreenState extends State<HomeScreen> {
 
   Future<void> _toggleWatchlist(String songId) async {
     try {
-      setState(() {
-        _isRefreshing = true;
-      });
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       if (userProvider.token == null) throw Exception('No token available');
-      final watchlist = await _fetchWatchlistFuture!;
-      final isInWatchlist = watchlist.any((song) => song['_id'] == songId);
+      
+      // Use the current watchlist
+      final isInWatchlist = _watchlist.any((song) => song['_id'] == songId);
+      
       if (isInWatchlist) {
+        // Remove from watchlist
         await _libraryService.removeFromWatchlist(userProvider.token, songId);
+        setState(() {
+          _watchlist.removeWhere((song) => song['_id'] == songId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Removed from watchlist')),
+        );
       } else {
+        // Add to watchlist
         await _libraryService.addToWatchlist(userProvider.token, songId);
+        // Fetch the song details to add to the local watchlist
+        final songs = await _fetchSongsFuture;
+        final songToAdd = songs?.firstWhere((song) => song['_id'] == songId, orElse: () => {});
+        if (songToAdd != null && songToAdd.isNotEmpty) {
+          setState(() {
+            _watchlist.add(songToAdd);
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Added to watchlist')),
+        );
       }
-      // Refresh the watchlist
-      setState(() {
-        _fetchWatchlistFuture = _libraryService.fetchWatchlist(userProvider.token);
-      });
-      await _fetchWatchlistFuture; // Wait for the fetch to complete
-      setState(() {
-        _isRefreshing = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(isInWatchlist
-                ? 'Removed from watchlist'
-                : 'Added to watchlist')),
-      );
     } catch (e) {
-      setState(() {
-        _isRefreshing = false;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> _addToPlaylist(String playlistId, String songId) async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    try {
+      await _libraryService.addToPlaylist(userProvider.token, playlistId, songId);
+      if (_onSongAdded != null) {
+        _onSongAdded!();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Song added to playlist')),
+      );
+      if (_playlistId != null) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -131,6 +163,10 @@ class HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please log in to add to playlists')),
       );
+      return;
+    }
+    if (_playlistId != null) {
+      await _addToPlaylist(_playlistId!, songId);
       return;
     }
     final playlists = await _libraryService.fetchPlaylists(userProvider.token);
@@ -188,24 +224,8 @@ class HomeScreenState extends State<HomeScreen> {
                                 style: const TextStyle(color: Colors.white),
                               ),
                               onTap: () async {
-                                try {
-                                  await _libraryService.addToPlaylist(
-                                      userProvider.token, playlist['_id'], songId);
-                                  // Refresh the watchlist in case it's affected
-                                  setState(() {
-                                    _fetchWatchlistFuture = _libraryService.fetchWatchlist(userProvider.token);
-                                  });
-                                  Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content: Text(
-                                            'Added to ${playlist['name']}')),
-                                  );
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
-                                  );
-                                }
+                                Navigator.pop(context);
+                                await _addToPlaylist(playlist['_id'], songId);
                               },
                             );
                           },
@@ -235,17 +255,8 @@ class HomeScreenState extends State<HomeScreen> {
                             try {
                               final newPlaylist =
                                   await _libraryService.createPlaylist(userProvider.token, name);
-                              await _libraryService.addToPlaylist(
-                                  userProvider.token, newPlaylist['_id'], songId);
-                              // Refresh the watchlist
-                              setState(() {
-                                _fetchWatchlistFuture = _libraryService.fetchWatchlist(userProvider.token);
-                              });
                               Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text('Created and added to $name')),
-                              );
+                              await _addToPlaylist(newPlaylist['_id'], songId);
                             } catch (e) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('Error: $e')),
@@ -292,90 +303,84 @@ class HomeScreenState extends State<HomeScreen> {
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: Theme.of(context).appBarTheme.elevation,
       ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (user != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12.0),
+                child: Text(
+                  'Welcome, ${user.fullName}!',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22),
+                ),
+              ),
+            const SizedBox(height: 16),
+            Stack(
               children: [
-                if (user != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/banner.jpg',
+                    width: double.infinity,
+                    height: 160,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        Container(color: Theme.of(context).colorScheme.surface, height: 160),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Text(
-                      'Welcome, ${user.fullName}!',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22),
+                      "Discover Ethiopian Music\nStream the best Ethiopian artists and discover new music from emerging talent",
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 14,
+                          ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                const SizedBox(height: 16),
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        'assets/images/banner.jpg',
-                        width: double.infinity,
-                        height: 160,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Container(color: Theme.of(context).colorScheme.surface, height: 160),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Container(
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          "Discover Ethiopian Music\nStream the best Ethiopian artists and discover new music from emerging talent",
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface,
-                                fontSize: 14,
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomButton(
-                        text: 'Play Featured',
-                        onPressed: () {},
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: CustomButton(
-                        text: 'Explore',
-                        isOutlined: true,
-                        onPressed: () {},
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                _sectionTitle(context, 'Trending Now'),
-                _songList(context, _fetchSongsFuture!, isTrending: true),
-                const SizedBox(height: 24),
-                _sectionTitle(context, 'Featured Artists'),
-                _artistList(context, _fetchArtistsFuture!),
-                const SizedBox(height: 24),
-                _sectionTitle(context, 'New Releases'),
-                _songList(context, _fetchSongsFuture!, isNewReleases: true),
-                const SizedBox(height: 80),
               ],
             ),
-          ),
-          if (_isRefreshing)
-            const Center(child: CircularProgressIndicator()),
-        ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: CustomButton(
+                    text: 'Play Featured',
+                    onPressed: () {},
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomButton(
+                    text: 'Explore',
+                    isOutlined: true,
+                    onPressed: () {},
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _sectionTitle(context, 'Trending Now'),
+            _songList(context, _fetchSongsFuture!, isTrending: true),
+            const SizedBox(height: 24),
+            _sectionTitle(context, 'Featured Artists'),
+            _artistList(context, _fetchArtistsFuture!),
+            const SizedBox(height: 24),
+            _sectionTitle(context, 'New Releases'),
+            _songList(context, _fetchSongsFuture!, isNewReleases: true),
+            const SizedBox(height: 80),
+          ],
+        ),
       ),
     );
   }
@@ -449,20 +454,16 @@ class HomeScreenState extends State<HomeScreen> {
               if (watchlistSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final watchlist = watchlistSnapshot.data ?? [];
+              // Store the watchlist locally for future updates
+              _watchlist = watchlistSnapshot.data ?? [];
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: displayedSongs.length,
                 itemBuilder: (context, index) {
                   final song = displayedSongs[index];
+                  print('Song $index: $song');
                   final audioUrl = '$baseUrl${song['audioPath'] ?? ''}';
-                  final isInWatchlist = watchlist.any((w) => w['_id'] == song['_id']);
-                  final durationSeconds = (song['duration'] is int)
-                      ? song['duration'] as int? ?? 0
-                      : 0;
-                  final durationFormatted = durationSeconds > 0
-                      ? '${(durationSeconds ~/ 60).toString().padLeft(2, '0')}:${(durationSeconds % 60).toString().padLeft(2, '0')}'
-                      : 'N/A';
+                  final isInWatchlist = _watchlist.any((w) => w['_id'] == song['_id']);
 
                   return Container(
                     width: 120,
@@ -541,10 +542,6 @@ class HomeScreenState extends State<HomeScreen> {
                         ),
                         Text(
                           song['artistName'] ?? 'Unknown Artist',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
-                        ),
-                        Text(
-                          durationFormatted,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
                         ),
                       ],

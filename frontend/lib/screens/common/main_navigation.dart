@@ -14,6 +14,7 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   late int _currentIndex;
+  final GlobalKey<State<LibraryScreen>> _libraryScreenKey = GlobalKey<State<LibraryScreen>>();
 
   @override
   void initState() {
@@ -21,21 +22,33 @@ class _MainNavigationState extends State<MainNavigation> {
     _currentIndex = widget.initialIndex;
   }
 
-  final List<Widget> _tabs = [
-    HomeScreen(),
-    const SearchScreen(),
-    const LibraryScreen(),
-    const ProfileScreen(),
-  ];
+  List<Widget> _buildTabs() {
+    return [
+      const HomeScreen(),
+      const SearchScreen(),
+      LibraryScreen(key: _libraryScreenKey),
+      const ProfileScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: IndexedStack(index: _currentIndex, children: _tabs),
+      body: IndexedStack(index: _currentIndex, children: _buildTabs()),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+        onTap: (i) {
+          setState(() {
+            _currentIndex = i;
+            // When the Library tab is selected, trigger a refresh
+            if (i == 2) {
+              // Cast the state to RefreshableScreen to call refreshData
+              final libraryState = _libraryScreenKey.currentState as RefreshableScreen?;
+              libraryState?.refreshData();
+            }
+          });
+        },
         selectedItemColor: Theme.of(context).primaryColor,
         unselectedItemColor: Theme.of(context).unselectedWidgetColor,
         backgroundColor: Theme.of(context).bottomNavigationBarTheme.backgroundColor,

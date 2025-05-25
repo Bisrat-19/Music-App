@@ -7,6 +7,10 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:frontend/config/constants.dart';
 
+mixin RefreshableScreen {
+  Future<void> refreshData();
+}
+
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -15,7 +19,7 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, RefreshableScreen {
   late final TabController _tab;
   Future<List<Map<String, dynamic>>>? _playlistsFuture;
   Future<List<Map<String, dynamic>>>? _watchlistFuture;
@@ -76,7 +80,9 @@ class _LibraryScreenState extends State<LibraryScreen>
         await _audioPlayer.setSourceUrl(audioUrl);
         _currentAudioUrl = audioUrl;
       }
-      await _audioPlayer.resume();
+      if (!_isPlaying) {
+        await _audioPlayer.resume();
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error playing audio: $e')),
@@ -88,7 +94,8 @@ class _LibraryScreenState extends State<LibraryScreen>
     await _audioPlayer.pause();
   }
 
-  void _refreshData() async {
+  @override
+  Future<void> refreshData() async {
     setState(() {
       _isRefreshing = true;
     });
@@ -102,7 +109,6 @@ class _LibraryScreenState extends State<LibraryScreen>
           ? _libraryService.fetchWatchlist(userProvider.token)
           : Future.value([]);
     });
-    // Wait for the futures to complete
     await Future.wait([_playlistsFuture!, _watchlistFuture!]);
     setState(() {
       _isRefreshing = false;
@@ -115,100 +121,106 @@ class _LibraryScreenState extends State<LibraryScreen>
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
+    return WillPopScope(
+      onWillPop: () async {
+        await refreshData();
+        return true;
+      },
+      child: Scaffold(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text('Your Library',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-        bottom: TabBar(
-          controller: _tab,
-          labelColor: Colors.green,
-          unselectedLabelColor: Colors.white60,
-          indicatorColor: Colors.green,
-          tabs: const [
-            Tab(text: 'Playlists'),
-            Tab(text: 'Watchlist'),
-          ],
-        ),
-      ),
-      body: Stack(
-        children: [
-          TabBarView(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          title: const Text('Your Library',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          bottom: TabBar(
             controller: _tab,
-            children: [
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _playlistsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Error loading playlists: ${snapshot.error}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton(
-                            onPressed: _refreshData,
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return _emptyPlaylists();
-                  }
-                  return _playlistList(snapshot.data!);
-                },
-              ),
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _watchlistFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Error loading watchlist: ${snapshot.error}',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton(
-                            onPressed: _refreshData,
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return _emptyWatchlist();
-                  }
-                  return _watchlistList(snapshot.data!);
-                },
-              ),
+            labelColor: Colors.green,
+            unselectedLabelColor: Colors.white60,
+            indicatorColor: Colors.green,
+            tabs: const [
+              Tab(text: 'Playlists'),
+              Tab(text: 'Watchlist'),
             ],
           ),
-          if (_isRefreshing)
-            const Center(child: CircularProgressIndicator()),
-        ],
+        ),
+        body: Stack(
+          children: [
+            TabBarView(
+              controller: _tab,
+              children: [
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _playlistsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Error loading playlists: ${snapshot.error}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            const SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: refreshData,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return _emptyPlaylists();
+                    }
+                    return _playlistList(snapshot.data!);
+                  },
+                ),
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _watchlistFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Error loading watchlist: ${snapshot.error}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            const SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: refreshData,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return _emptyWatchlist();
+                    }
+                    return _watchlistList(snapshot.data!);
+                  },
+                ),
+              ],
+            ),
+            if (_isRefreshing)
+              const Center(child: CircularProgressIndicator()),
+          ],
+        ),
+        floatingActionButton: _tab.index == 0
+            ? FloatingActionButton(
+                backgroundColor: Colors.green,
+                onPressed: _showCreatePlaylistSheet,
+                child: const Icon(Icons.add, color: Colors.white),
+              )
+            : null,
       ),
-      floatingActionButton: _tab.index == 0
-          ? FloatingActionButton(
-              backgroundColor: Colors.green,
-              onPressed: _showCreatePlaylistSheet,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
     );
   }
 
@@ -229,11 +241,13 @@ class _LibraryScreenState extends State<LibraryScreen>
       subText: 'Save songs to listen later',
       buttonLabel: 'Browse songs',
       onPressed: () {
-        Navigator.pushReplacementNamed(
+        Navigator.pushNamed(
           context,
           AppRoutes.mainNav,
           arguments: 1,
-        );
+        ).then((_) {
+          refreshData();
+        });
       },
     );
   }
@@ -267,7 +281,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                 final userProvider = Provider.of<UserProvider>(context, listen: false);
                 try {
                   await _libraryService.deletePlaylist(userProvider.token, p['_id']);
-                  _refreshData();
+                  await refreshData();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Playlist deleted')),
                   );
@@ -296,9 +310,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                   onPause: _pauseAudio,
                   isPlaying: _isPlaying,
                   currentAudioUrl: _currentAudioUrl,
+                  onRefresh: refreshData,
                 ),
               ),
-            );
+            ).then((_) {
+              refreshData();
+            });
           },
         );
       },
@@ -313,11 +330,8 @@ class _LibraryScreenState extends State<LibraryScreen>
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (_, i) {
         final s = watchlist[i];
+        print('Watchlist Song $i: $s');
         final audioUrl = '$baseUrl${s['audioPath'] ?? ''}';
-        final durationSeconds = s['duration'] as int? ?? 0; // Default to 0 if null
-        final durationFormatted = durationSeconds > 0
-            ? '${(durationSeconds ~/ 60).toString().padLeft(2, '0')}:${(durationSeconds % 60).toString().padLeft(2, '0')}'
-            : 'N/A';
 
         return ListTile(
           leading: Container(
@@ -334,28 +348,21 @@ class _LibraryScreenState extends State<LibraryScreen>
                   color: Colors.white, fontWeight: FontWeight.w600)),
           subtitle: Text(s['artistName'] ?? 'Unknown Artist',
               style: const TextStyle(color: Colors.white60)),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(durationFormatted,
-                  style: const TextStyle(color: Colors.white60)),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () async {
-                  try {
-                    await _libraryService.removeFromWatchlist(userProvider.token, s['_id']);
-                    _refreshData();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Removed from watchlist')),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
-                  }
-                },
-              ),
-            ],
+          trailing: IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () async {
+              try {
+                await _libraryService.removeFromWatchlist(userProvider.token, s['_id']);
+                await refreshData();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Removed from watchlist')),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
           ),
           onTap: () {
             if (_isPlaying && _currentAudioUrl == audioUrl) {
@@ -425,8 +432,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                       if (name.isNotEmpty) {
                         try {
                           await _libraryService.createPlaylist(userProvider.token, name);
-                          _refreshData();
                           Navigator.pop(context);
+                          await refreshData();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Playlist created')),
                           );
@@ -456,6 +463,7 @@ class PlaylistDetailScreen extends StatelessWidget {
   final Function() onPause;
   final bool isPlaying;
   final String? currentAudioUrl;
+  final VoidCallback onRefresh;
 
   const PlaylistDetailScreen({
     super.key,
@@ -465,6 +473,7 @@ class PlaylistDetailScreen extends StatelessWidget {
     required this.onPause,
     required this.isPlaying,
     required this.currentAudioUrl,
+    required this.onRefresh,
   });
 
   @override
@@ -493,10 +502,6 @@ class PlaylistDetailScreen extends StatelessWidget {
               itemBuilder: (_, i) {
                 final s = songs[i];
                 final audioUrl = '$baseUrl${s['audioPath'] ?? ''}';
-                final durationSeconds = s['duration'] as int? ?? 0; // Default to 0 if null
-                final durationFormatted = durationSeconds > 0
-                    ? '${(durationSeconds ~/ 60).toString().padLeft(2, '0')}:${(durationSeconds % 60).toString().padLeft(2, '0')}'
-                    : 'N/A';
 
                 return ListTile(
                   leading: Container(
@@ -512,8 +517,6 @@ class PlaylistDetailScreen extends StatelessWidget {
                       style: const TextStyle(
                           color: Colors.white, fontWeight: FontWeight.w600)),
                   subtitle: Text(s['artistName'] ?? 'Unknown Artist',
-                      style: const TextStyle(color: Colors.white60)),
-                  trailing: Text(durationFormatted,
                       style: const TextStyle(color: Colors.white60)),
                   onTap: () {
                     if (isPlaying && currentAudioUrl == audioUrl) {
