@@ -17,7 +17,7 @@ class CustomButton extends StatelessWidget {
     this.onPressed,
     this.isOutlined = false,
     this.color = const Color(0xFF1DB954),
-    this.isFullWidth = true,
+    this.isFullWidth = true, CircularProgressIndicator? child,
   });
 
   @override

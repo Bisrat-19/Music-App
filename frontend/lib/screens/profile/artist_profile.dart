@@ -1,12 +1,90 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_routes.dart';
+import 'package:frontend/config/constants.dart';
 import 'package:frontend/providers/user_provider.dart';
 import 'package:frontend/screens/artist/artist_dashboard_screen.dart';
 import 'package:frontend/widgets/custom_button.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'dart:html' as html;
 
-class ArtistProfile extends StatelessWidget {
+class ArtistProfile extends StatefulWidget {
   const ArtistProfile({super.key});
+
+  @override
+  _ArtistProfileState createState() => _ArtistProfileState();
+}
+
+class _ArtistProfileState extends State<ArtistProfile> {
+  dynamic _image;
+  bool _isLoading = false;
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      if (html.window.navigator.userAgent.contains('Chrome')) {
+        final xhr = html.HttpRequest();
+        xhr.open('GET', pickedFile.path, async: true);
+        xhr.responseType = 'blob';
+        xhr.send();
+        await xhr.onLoad.first;
+        final blob = xhr.response as html.Blob;
+        if (blob == null) {
+          print('ArtistProfile: Failed to get blob from xhr.response');
+          return;
+        }
+        final webFile = html.File([blob], 'profile_image.jpg', {'type': 'image/jpeg'});
+        print('ArtistProfile: Created webFile: $webFile, type: ${webFile.runtimeType}');
+        setState(() {
+          _image = webFile;
+        });
+      } else {
+        setState(() {
+          _image = File(pickedFile.path);
+        });
+      }
+    }
+  }
+
+  Future<void> _updateProfileImage() async {
+    print('ArtistProfile: Starting profile image update');
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      if (userProvider.user == null || userProvider.token == null) {
+        throw Exception('User not logged in');
+      }
+      print('ArtistProfile: User ID: ${userProvider.user!.id}, Token: ${userProvider.token}');
+      print('ArtistProfile: Image to upload: $_image, type: ${_image.runtimeType}');
+
+      await userProvider.updateProfileImage(
+        userProvider.user!.id,
+        _image,
+      );
+
+      setState(() {
+        _image = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile image updated successfully')),
+      );
+    } catch (e) {
+      print('ArtistProfile: Error updating profile image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating profile image: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,15 +108,51 @@ class ArtistProfile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Profile Picture with Checkmark
+            // Profile Picture with Checkmark and Camera Icon
             Stack(
               alignment: Alignment.bottomRight,
               children: [
                 CircleAvatar(
                   radius: 60,
-                  backgroundImage: const AssetImage('assets/images/profile.png'),
                   backgroundColor: const Color(0xFF212121), // Dark gray background
-                  foregroundImage: const AssetImage('assets/images/profile.png'),
+                  child: _image != null
+                      ? ClipOval(
+                          child: _image is html.File
+                              ? Image.network(
+                                  html.Url.createObjectUrl(_image),
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.file(
+                                  _image,
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                ),
+                        )
+                      : user?.profileImagePath != null
+                          ? ClipOval(
+                              child: Image.network(
+                                '$baseUrl${user!.profileImagePath}',
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  print('ArtistProfile: Error loading image: $error');
+                                  return const Icon(
+                                    Icons.person,
+                                    size: 60,
+                                    color: Colors.white,
+                                  );
+                                },
+                              ),
+                            )
+                          : const Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.white,
+                            ),
                 ),
                 Container(
                   padding: const EdgeInsets.all(4),
@@ -50,6 +164,18 @@ class ArtistProfile extends StatelessWidget {
                     Icons.check_circle,
                     color: Colors.white,
                     size: 16,
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.camera_alt,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    onPressed: _pickImage,
                   ),
                 ),
               ],
@@ -116,6 +242,18 @@ class ArtistProfile extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             // Buttons
+            if (_image != null)
+              CustomButton(
+                text: 'Save Profile Image',
+                icon: Icons.save,
+                color: const Color(0xFF1DB954),
+                isFullWidth: true,
+                onPressed: _isLoading ? null : _updateProfileImage,
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : null,
+              ),
+            if (_image != null) const SizedBox(height: 12),
             CustomButton(
               text: 'Artist Dashboard',
               icon: Icons.person,

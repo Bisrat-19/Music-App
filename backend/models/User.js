@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema({
       ref: 'Song',
     },
   ],
+  profileImagePath: {
+    type: String, // Stores the path to the uploaded image (e.g., /uploads/profile/123456789-image.jpg)
+    default: null, // Optional field, can be null if no image is uploaded
+  },
 }, {
   timestamps: true
 });
@@ -41,4 +45,7 @@ userSchema.methods.comparePassword = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
-module.exports = mongoose.model('User', userSchema);
+// Check if the model is already registered, and register it only if not
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+module.exports = User;

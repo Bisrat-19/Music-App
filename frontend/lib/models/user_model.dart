@@ -1,14 +1,16 @@
 class UserModel {
   final String id;
-  final String fullName;
-  final String email;
+  final String? fullName;
+  final String? email;   
   final String role;
+  final String? profileImagePath;
 
   UserModel({
     required this.id,
-    required this.fullName,
-    required this.email,
+    this.fullName,
+    this.email,
     required this.role,
+    this.profileImagePath,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -16,12 +18,10 @@ class UserModel {
     final fullName = json['fullName'];
     final email = json['email'];
     final role = json['role'];
+    final profileImagePath = json['profileImagePath'];
 
     if (id == null || id is! String || id.isEmpty) {
       throw FormatException('Invalid or missing user ID');
-    }
-    if (email == null || email is! String || email.isEmpty) {
-      throw FormatException('Invalid or missing email');
     }
     if (role == null || role is! String || !['listener', 'artist', 'admin'].contains(role)) {
       throw FormatException('Invalid or missing role');
@@ -29,9 +29,10 @@ class UserModel {
 
     return UserModel(
       id: id,
-      fullName: fullName ?? '', // Allow empty fullName for flexibility
-      email: email,
+      fullName: fullName is String ? fullName : '', // Fallback to empty string
+      email: email is String ? email : null,       // Allow null email
       role: role,
+      profileImagePath: profileImagePath is String ? profileImagePath : null, // Allow null if not present
     );
   }
 
@@ -41,6 +42,7 @@ class UserModel {
       'fullName': fullName,
       'email': email,
       'role': role,
+      'profileImagePath': profileImagePath,
     };
   }
 }

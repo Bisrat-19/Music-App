@@ -8,6 +8,7 @@ import 'package:frontend/widgets/custom_button.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'library_screen.dart' as libScreen; 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,11 +17,11 @@ class HomeScreen extends StatefulWidget {
   HomeScreenState createState() => HomeScreenState();
 }
 
-class HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen {
   Future<List<Map<String, dynamic>>>? _fetchSongsFuture;
   Future<List<Map<String, dynamic>>>? _fetchArtistsFuture;
   Future<List<Map<String, dynamic>>>? _fetchWatchlistFuture;
-  List<Map<String, dynamic>> _watchlist = []; // Local watchlist state
+  List<Map<String, dynamic>> _watchlist = [];
   final HomeService _homeService = HomeService();
   final LibraryService _libraryService = LibraryService();
   late AudioPlayer _audioPlayer;
@@ -28,6 +29,7 @@ class HomeScreenState extends State<HomeScreen> {
   bool _isPlaying = false;
   String? _playlistId;
   Function? _onSongAdded;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -54,6 +56,26 @@ class HomeScreenState extends State<HomeScreen> {
       _fetchWatchlistFuture = userProvider.token != null
           ? _libraryService.fetchWatchlist(userProvider.token)
           : Future.value([]);
+    });
+  }
+
+  @override
+  Future<void> refreshData() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    print('Refreshing HomeScreen data with token: ${userProvider.token}');
+    setState(() {
+      _fetchSongsFuture = _homeService.fetchReleasedSongs();
+      _fetchArtistsFuture = _homeService.fetchArtists();
+      _fetchWatchlistFuture = userProvider.token != null
+          ? _libraryService.fetchWatchlist(userProvider.token)
+          : Future.value([]);
+    });
+    await Future.wait([_fetchSongsFuture!, _fetchArtistsFuture!, _fetchWatchlistFuture!]);
+    setState(() {
+      _isRefreshing = false;
     });
   }
 
@@ -103,11 +125,9 @@ class HomeScreenState extends State<HomeScreen> {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
       if (userProvider.token == null) throw Exception('No token available');
       
-      // Use the current watchlist
       final isInWatchlist = _watchlist.any((song) => song['_id'] == songId);
       
       if (isInWatchlist) {
-        // Remove from watchlist
         await _libraryService.removeFromWatchlist(userProvider.token, songId);
         setState(() {
           _watchlist.removeWhere((song) => song['_id'] == songId);
@@ -116,9 +136,7 @@ class HomeScreenState extends State<HomeScreen> {
           const SnackBar(content: Text('Removed from watchlist')),
         );
       } else {
-        // Add to watchlist
         await _libraryService.addToWatchlist(userProvider.token, songId);
-        // Fetch the song details to add to the local watchlist
         final songs = await _fetchSongsFuture;
         final songToAdd = songs?.firstWhere((song) => song['_id'] == songId, orElse: () => {});
         if (songToAdd != null && songToAdd.isNotEmpty) {
@@ -303,84 +321,90 @@ class HomeScreenState extends State<HomeScreen> {
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: Theme.of(context).appBarTheme.elevation,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (user != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
-                child: Text(
-                  'Welcome, ${user.fullName}!',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22),
-                ),
-              ),
-            const SizedBox(height: 16),
-            Stack(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    'assets/images/banner.jpg',
-                    width: double.infinity,
-                    height: 160,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        Container(color: Theme.of(context).colorScheme.surface, height: 160),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                if (user != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
                     child: Text(
-                      "Discover Ethiopian Music\nStream the best Ethiopian artists and discover new music from emerging talent",
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontSize: 14,
-                          ),
-                      textAlign: TextAlign.center,
+                      'Welcome, ${user.fullName}!',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22),
                     ),
                   ),
+                const SizedBox(height: 16),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/images/banner.jpg',
+                        width: double.infinity,
+                        height: 160,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            Container(color: Theme.of(context).colorScheme.surface, height: 160),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Container(
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "Discover Ethiopian Music\nStream the best Ethiopian artists and discover new music from emerging talent",
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                                fontSize: 14,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomButton(
+                        text: 'Play Featured',
+                        onPressed: () {},
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: CustomButton(
+                        text: 'Explore',
+                        isOutlined: true,
+                        onPressed: () {},
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _sectionTitle(context, 'Trending Now'),
+                _songList(context, _fetchSongsFuture!, isTrending: true),
+                const SizedBox(height: 24),
+                _sectionTitle(context, 'Featured Artists'),
+                _artistList(context, _fetchArtistsFuture!),
+                const SizedBox(height: 24),
+                _sectionTitle(context, 'New Releases'),
+                _songList(context, _fetchSongsFuture!, isNewReleases: true),
+                const SizedBox(height: 80),
               ],
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomButton(
-                    text: 'Play Featured',
-                    onPressed: () {},
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CustomButton(
-                    text: 'Explore',
-                    isOutlined: true,
-                    onPressed: () {},
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _sectionTitle(context, 'Trending Now'),
-            _songList(context, _fetchSongsFuture!, isTrending: true),
-            const SizedBox(height: 24),
-            _sectionTitle(context, 'Featured Artists'),
-            _artistList(context, _fetchArtistsFuture!),
-            const SizedBox(height: 24),
-            _sectionTitle(context, 'New Releases'),
-            _songList(context, _fetchSongsFuture!, isNewReleases: true),
-            const SizedBox(height: 80),
-          ],
-        ),
+          ),
+          if (_isRefreshing)
+            const Center(child: CircularProgressIndicator()),
+        ],
       ),
     );
   }
@@ -405,154 +429,177 @@ class HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _songList(BuildContext context, Future<List<Map<String, dynamic>>> songsFuture, {bool isTrending = false, bool isNewReleases = false}) {
-    return SizedBox(
-      height: 180,
-      child: FutureBuilder<List<Map<String, dynamic>>>(
-        future: songsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                children: [
-                  Text(
-                    'Error loading songs: ${snapshot.error}',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _fetchSongsFuture = _homeService.fetchReleasedSongs();
-                      });
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Text(
-                'No songs available.',
-                style: TextStyle(color: Colors.white),
-              ),
-            );
-          }
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: songsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              children: [
+                Text(
+                  'Error loading songs: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    refreshData();
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Text(
+              'No songs available.',
+              style: TextStyle(color: Colors.white),
+            ),
+          );
+        }
 
-          final songs = snapshot.data!;
-          final displayedSongs = isTrending
-              ? songs.take(3).toList()
-              : isNewReleases
-                  ? songs.reversed.take(3).toList()
-                  : songs;
+        final songs = snapshot.data!;
+        final displayedSongs = isTrending
+            ? songs
+            : isNewReleases
+                ? songs.reversed.toList()
+                : songs;
 
-          return FutureBuilder<List<Map<String, dynamic>>>(
-            future: _fetchWatchlistFuture!,
-            builder: (context, watchlistSnapshot) {
-              if (watchlistSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              // Store the watchlist locally for future updates
-              _watchlist = watchlistSnapshot.data ?? [];
-              return ListView.builder(
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _fetchWatchlistFuture!,
+          builder: (context, watchlistSnapshot) {
+            if (watchlistSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            _watchlist = watchlistSnapshot.data ?? [];
+            
+            final ScrollController scrollController = ScrollController();
+
+            return Container(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: SingleChildScrollView(
+                controller: scrollController,
                 scrollDirection: Axis.horizontal,
-                itemCount: displayedSongs.length,
-                itemBuilder: (context, index) {
-                  final song = displayedSongs[index];
-                  print('Song $index: $song');
-                  final audioUrl = '$baseUrl${song['audioPath'] ?? ''}';
-                  final isInWatchlist = _watchlist.any((w) => w['_id'] == song['_id']);
+                physics: const BouncingScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: MediaQuery.of(context).size.width,
+                  ),
+                  child: Row(
+                    children: displayedSongs.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final song = entry.value;
+                      print('Song $index: $song');
+                      final audioUrl = '$baseUrl${song['audioPath'] ?? ''}';
+                      final isInWatchlist = _watchlist.any((w) => w['_id'] == song['_id']);
 
-                  return Container(
-                    width: 120,
-                    margin: const EdgeInsets.only(right: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Stack(
-                          alignment: Alignment.center,
+                      return Container(
+                        width: 120,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                song['coverImagePath'] != null
-                                    ? '$baseUrl${song['coverImagePath']}'
-                                    : 'https://via.placeholder.com/120x100',
-                                height: 100,
-                                width: 120,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  color: Theme.of(context).colorScheme.surface,
-                                  height: 100,
-                                  width: 120,
-                                ),
-                              ),
-                            ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Stack(
                               children: [
-                                IconButton(
-                                  icon: Icon(
-                                    isInWatchlist ? Icons.favorite : Icons.favorite_border,
-                                    color: isInWatchlist ? Colors.red : Theme.of(context).colorScheme.onSurface,
-                                    size: 24,
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    song['coverImagePath'] != null
+                                        ? '$baseUrl${song['coverImagePath']}'
+                                        : 'https://via.placeholder.com/120x100',
+                                    height: 100,
+                                    width: 120,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      color: Theme.of(context).colorScheme.surface,
+                                      height: 100,
+                                      width: 120,
+                                    ),
                                   ),
-                                  onPressed: () => _toggleWatchlist(song['_id']),
                                 ),
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.playlist_add,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                    size: 24,
+                                // Watchlist icon at top-left (closer to corner)
+                                Positioned(
+                                  top: 0,
+                                  left: 0,
+                                  child: IconButton(
+                                    icon: Icon(
+                                      isInWatchlist ? Icons.favorite : Icons.favorite_border,
+                                      color: isInWatchlist ? Colors.red : Theme.of(context).colorScheme.onSurface,
+                                      size: 24,
+                                    ),
+                                    onPressed: () => _toggleWatchlist(song['_id']),
                                   ),
-                                  onPressed: () => _showAddToPlaylistDialog(song['_id']),
+                                ),
+                                // Three-dot menu at top-right (closer to corner)
+                                Positioned(
+                                  top: 0,
+                                  right: 0,
+                                  child: PopupMenuButton<String>(
+                                    icon: Icon(
+                                      Icons.more_vert,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      size: 24,
+                                    ),
+                                    onSelected: (value) {
+                                      if (value == 'add_to_playlist') {
+                                        _showAddToPlaylistDialog(song['_id']);
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'add_to_playlist',
+                                        child: Text('Add to Playlist'),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: () {
+                                if (_isPlaying && _currentAudioUrl == audioUrl) {
+                                  _pauseAudio();
+                                } else {
+                                  _playAudio(audioUrl);
+                                }
+                              },
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _isPlaying && _currentAudioUrl == audioUrl ? Icons.pause : Icons.play_circle,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      song['title'] ?? 'Untitled',
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              song['artistName'] ?? 'Unknown Artist',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        GestureDetector(
-                          onTap: () {
-                            if (_isPlaying && _currentAudioUrl == audioUrl) {
-                              _pauseAudio();
-                            } else {
-                              _playAudio(audioUrl);
-                            }
-                          },
-                          child: Row(
-                            children: [
-                              Icon(
-                                _isPlaying && _currentAudioUrl == audioUrl ? Icons.pause : Icons.play_circle,
-                                color: Theme.of(context).colorScheme.onSurface,
-                                size: 24,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  song['title'] ?? 'Untitled',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          song['artistName'] ?? 'Unknown Artist',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -575,9 +622,7 @@ class HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 10),
                   ElevatedButton(
                     onPressed: () {
-                      setState(() {
-                        _fetchArtistsFuture = _homeService.fetchArtists();
-                      });
+                      refreshData();
                     },
                     child: const Text('Retry'),
                   ),

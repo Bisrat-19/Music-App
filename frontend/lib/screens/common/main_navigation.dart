@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
-import 'library_screen.dart';
+import 'library_screen.dart' as libScreen; 
 import '../profile/profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -14,7 +14,8 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   late int _currentIndex;
-  final GlobalKey<State<LibraryScreen>> _libraryScreenKey = GlobalKey<State<LibraryScreen>>();
+  final GlobalKey<State<HomeScreen>> _homeScreenKey = GlobalKey<State<HomeScreen>>();
+  final GlobalKey<State<libScreen.LibraryScreen>> _libraryScreenKey = GlobalKey<State<libScreen.LibraryScreen>>();
 
   @override
   void initState() {
@@ -24,9 +25,9 @@ class _MainNavigationState extends State<MainNavigation> {
 
   List<Widget> _buildTabs() {
     return [
-      const HomeScreen(),
+      HomeScreen(key: _homeScreenKey),
       const SearchScreen(),
-      LibraryScreen(key: _libraryScreenKey),
+      libScreen.LibraryScreen(key: _libraryScreenKey),
       const ProfileScreen(),
     ];
   }
@@ -38,16 +39,20 @@ class _MainNavigationState extends State<MainNavigation> {
       body: IndexedStack(index: _currentIndex, children: _buildTabs()),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (i) {
+        onTap: (i) async {
           setState(() {
             _currentIndex = i;
-            // When the Library tab is selected, trigger a refresh
-            if (i == 2) {
-              // Cast the state to RefreshableScreen to call refreshData
-              final libraryState = _libraryScreenKey.currentState as RefreshableScreen?;
-              libraryState?.refreshData();
-            }
           });
+          // When the Home tab is selected, trigger a refresh
+          if (i == 0) {
+            final homeState = _homeScreenKey.currentState as libScreen.RefreshableScreen?;
+            await homeState?.refreshData();
+          }
+          // When the Library tab is selected, trigger a refresh
+          if (i == 2) {
+            final libraryState = _libraryScreenKey.currentState as libScreen.RefreshableScreen?;
+            await libraryState?.refreshData();
+          }
         },
         selectedItemColor: Theme.of(context).primaryColor,
         unselectedItemColor: Theme.of(context).unselectedWidgetColor,
