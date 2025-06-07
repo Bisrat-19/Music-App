@@ -3,7 +3,8 @@ const router = express.Router();
 const protect = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
-const User = require('../models/user'); // Adjust path if needed
+const User = require('../models/User'); // Adjust path if needed
+
 
 // Configure Multer for image uploads to the 'profile' subdirectory
 const storage = multer.diskStorage({

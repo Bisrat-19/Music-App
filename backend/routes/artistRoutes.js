@@ -10,15 +10,33 @@ router.get('/', async (req, res) => {
       query
         ? { role: 'artist', fullName: { $regex: query, $options: 'i' } }
         : { role: 'artist' }
-    ).select('fullName');
+    ).select('fullName profileImagePath'); // Include profileImagePath if available
     const artistsWithDetails = artists.map(artist => ({
       _id: artist._id,
       fullName: artist.fullName,
-      avatarPath: null, // Add avatarPath if available in your User schema
+      avatarPath: artist.profileImagePath || null, // Map profileImagePath to avatarPath
     }));
     res.status(200).json(artistsWithDetails);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching artists', error: error.message });
+  }
+});
+
+// Fetch artist by ID (public endpoint)
+router.get('/:id', async (req, res) => {
+  try {
+    const artist = await User.findOne({ _id: req.params.id, role: 'artist' }).select('fullName profileImagePath');
+    if (!artist) {
+      return res.status(404).json({ message: 'Artist not found' });
+    }
+    const artistDetails = {
+      _id: artist._id,
+      fullName: artist.fullName,
+      avatarPath: artist.profileImagePath || null, // Map profileImagePath to avatarPath
+    };
+    res.status(200).json(artistDetails);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching artist', error: error.message });
   }
 });
 

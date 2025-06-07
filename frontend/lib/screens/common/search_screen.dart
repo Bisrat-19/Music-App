@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/config/constants.dart';
+import 'package:frontend/screens/artist/artist_detail_screen.dart';
 import 'package:frontend/services/search_service.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -147,16 +148,34 @@ class _SearchScreenState extends State<SearchScreen> {
                   const Text('Songs',
                       style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  ..._searchResults
-                      .where((result) => result.containsKey('title'))
-                      .map((song) => _SongResultTile(song: song)),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _searchResults.where((result) => result.containsKey('title')).length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12), // Added space between songs
+                    itemBuilder: (_, index) {
+                      final song = _searchResults
+                          .where((result) => result.containsKey('title'))
+                          .toList()[index];
+                      return _SongResultTile(song: song);
+                    },
+                  ),
                   const SizedBox(height: 24),
                   const Text('Artists',
                       style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  ..._searchResults
-                      .where((result) => result.containsKey('fullName'))
-                      .map((artist) => _ArtistResultTile(artist: artist)),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _searchResults.where((result) => result.containsKey('fullName')).length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12), // Added space between artists
+                    itemBuilder: (_, index) {
+                      final artist = _searchResults
+                          .where((result) => result.containsKey('fullName'))
+                          .toList()[index];
+                      return _ArtistResultTile(artist: artist);
+                    },
+                  ),
                 ],
               );
   }
@@ -172,7 +191,7 @@ class _SongResultTile extends StatelessWidget {
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: Image.network(
-          '${song['coverImagePath'] != null ? '$baseUrl${song['coverImagePath']}' : 'https://via.placeholder.com/40x40'}',
+          song['coverImagePath'] != null ? '$baseUrl${song['coverImagePath']}' : 'https://via.placeholder.com/40x40',
           width: 40,
           height: 40,
           fit: BoxFit.cover,
@@ -212,7 +231,7 @@ class _ArtistResultTile extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(
         backgroundImage: NetworkImage(
-          '${artist['avatarPath'] != null ? '$baseUrl${artist['avatarPath']}' : 'https://via.placeholder.com/48x48'}',
+          artist['avatarPath'] != null ? '$baseUrl${artist['avatarPath']}' : 'https://via.placeholder.com/48x48',
         ),
         radius: 24,
         onBackgroundImageError: (_, __) => Container(color: Colors.grey[800]),
@@ -220,7 +239,13 @@ class _ArtistResultTile extends StatelessWidget {
       title: Text(artist['fullName'] ?? 'Unknown Artist',
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
       onTap: () {
-        // TODO: Navigate to artist profile
+        // Navigate to ArtistDetailScreen with the artistId
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ArtistDetailScreen(artistId: artist['_id'].toString()),
+          ),
+        );
       },
     );
   }

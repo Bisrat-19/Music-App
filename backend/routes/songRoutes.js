@@ -101,6 +101,28 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Fetch songs by artistId (public endpoint)
+router.get('/artist/:artistId', async (req, res) => {
+  try {
+    const artistId = req.params.artistId;
+    const songs = await Song.find({ artistId }).populate('artistId', 'fullName');
+    if (!songs || songs.length === 0) {
+      return res.status(404).json({ message: 'No songs found for this artist' });
+    }
+    const songsWithArtistName = songs.map(song => ({
+      _id: song._id,
+      title: song.title,
+      artistName: song.artistId ? song.artistId.fullName : 'Unknown Artist',
+      coverImagePath: song.coverImagePath || null,
+      audioPath: song.audioPath,
+      duration: song.duration || 'N/A',
+    }));
+    res.status(200).json(songsWithArtistName);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching songs by artist', error: error.message });
+  }
+});
+
 // Upload song route
 router.post(
   '/upload',

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:frontend/config/constants.dart';
 import 'package:frontend/providers/user_provider.dart';
@@ -8,7 +9,8 @@ import 'package:frontend/widgets/custom_button.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'library_screen.dart' as libScreen; 
+import 'library_screen.dart' as libScreen;
+import 'package:frontend/screens/artist/artist_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -198,15 +200,13 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => Padding(
-          padding:
-              const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 32),
+          padding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 createNew ? 'Create New Playlist' : 'Add to Playlist',
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               if (createNew)
@@ -218,10 +218,8 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
                     hintText: 'Playlist name',
                     hintStyle: TextStyle(color: Colors.white54),
                     counterStyle: TextStyle(color: Colors.white54, fontSize: 12),
-                    enabledBorder:
-                        OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                    focusedBorder:
-                        OutlineInputBorder(borderSide: BorderSide(color: Colors.green)),
+                    enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.green)),
                   ),
                 )
               else
@@ -264,15 +262,13 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                       onPressed: () async {
                         if (createNew) {
                           final name = controller.text.trim();
                           if (name.isNotEmpty) {
                             try {
-                              final newPlaylist =
-                                  await _libraryService.createPlaylist(userProvider.token, name);
+                              final newPlaylist = await _libraryService.createPlaylist(userProvider.token, name);
                               Navigator.pop(context);
                               await _addToPlaylist(newPlaylist['_id'], songId);
                             } catch (e) {
@@ -303,9 +299,7 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context).user;
 
-    if (_fetchSongsFuture == null ||
-        _fetchArtistsFuture == null ||
-        _fetchWatchlistFuture == null) {
+    if (_fetchSongsFuture == null || _fetchArtistsFuture == null || _fetchWatchlistFuture == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -520,40 +514,18 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
                                     ),
                                   ),
                                 ),
-                                // Watchlist icon at top-left (closer to corner)
                                 Positioned(
-                                  top: 0,
-                                  left: 0,
+                                  top: 4,
+                                  right: 4,
                                   child: IconButton(
                                     icon: Icon(
                                       isInWatchlist ? Icons.favorite : Icons.favorite_border,
                                       color: isInWatchlist ? Colors.red : Theme.of(context).colorScheme.onSurface,
-                                      size: 24,
+                                      size: 20,
                                     ),
                                     onPressed: () => _toggleWatchlist(song['_id']),
-                                  ),
-                                ),
-                                // Three-dot menu at top-right (closer to corner)
-                                Positioned(
-                                  top: 0,
-                                  right: 0,
-                                  child: PopupMenuButton<String>(
-                                    icon: Icon(
-                                      Icons.more_vert,
-                                      color: Theme.of(context).colorScheme.onSurface,
-                                      size: 24,
-                                    ),
-                                    onSelected: (value) {
-                                      if (value == 'add_to_playlist') {
-                                        _showAddToPlaylistDialog(song['_id']);
-                                      }
-                                    },
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(
-                                        value: 'add_to_playlist',
-                                        child: Text('Add to Playlist'),
-                                      ),
-                                    ],
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
                                   ),
                                 ),
                               ],
@@ -582,6 +554,26 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  PopupMenuButton<String>(
+                                    icon: Icon(
+                                      Icons.more_vert,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      size: 20,
+                                    ),
+                                    onSelected: (value) {
+                                      if (value == 'add_to_playlist') {
+                                        _showAddToPlaylistDialog(song['_id']);
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(
+                                        value: 'add_to_playlist',
+                                        child: Text('Add to Playlist'),
+                                      ),
+                                    ],
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
                                 ],
                               ),
                             ),
@@ -604,6 +596,8 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
   }
 
   Widget _artistList(BuildContext context, Future<List<Map<String, dynamic>>> artistsFuture) {
+    final Uint8List placeholderBytes = Uint8List.fromList(List.filled(64 * 64 * 4, 128)); // 64x64 RGBA, grey
+
     return SizedBox(
       height: 110,
       child: FutureBuilder<List<Map<String, dynamic>>>(
@@ -639,34 +633,61 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
           }
 
           final artists = snapshot.data!.take(3).toList();
+          print('Artist data: $artists'); // Log full artist data
           return ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: artists.length,
             itemBuilder: (context, index) {
               final artist = artists[index];
-              return GestureDetector(
-                onTap: () {},
-                child: Container(
-                  width: 80,
-                  margin: const EdgeInsets.only(right: 12),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundColor: Theme.of(context).colorScheme.surface,
-                        child: const Icon(Icons.person, color: Colors.white, size: 32),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        artist['fullName'] ?? 'Unknown',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        '1.5M Followers',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
-                      ),
-                    ],
+              final imagePath = artist['avatarPath'] ?? artist['profileImagePath']; // Use avatarPath as primary, fallback to profileImagePath
+              final imageUrl = imagePath != null ? '$baseUrl$imagePath' : null;
+              print('Artist $index: ${artist['fullName']}, imagePath: $imagePath, imageUrl: $imageUrl');
+
+              return MouseRegion(
+                cursor: SystemMouseCursors.click, // Changes cursor to a small hand on hover
+                child: GestureDetector(
+                  onTap: () {
+                    if (artist['_id'] != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ArtistDetailScreen(artistId: artist['_id'] as String),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    width: 80,
+                    margin: const EdgeInsets.only(right: 12),
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 32,
+                          backgroundColor: Theme.of(context).colorScheme.surface,
+                          child: imageUrl != null
+                              ? ClipOval(
+                                  child: FadeInImage(
+                                    placeholder: MemoryImage(placeholderBytes),
+                                    image: NetworkImage(imageUrl),
+                                    fit: BoxFit.cover,
+                                    width: 64,
+                                    height: 64,
+                                    imageErrorBuilder: (context, error, stackTrace) {
+                                      print('Image load error for $imageUrl: $error');
+                                      return const Icon(Icons.person, color: Colors.white, size: 32);
+                                    },
+                                  ),
+                                )
+                              : const Icon(Icons.person, color: Colors.white, size: 32),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          artist['fullName'] ?? 'Unknown',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
