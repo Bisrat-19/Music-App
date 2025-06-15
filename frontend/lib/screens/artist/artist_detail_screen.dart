@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/config/constants.dart';
+import 'package:frontend/providers/user_provider.dart';
 import 'package:frontend/services/home_service.dart';
+import 'package:provider/provider.dart';
 
 class ArtistDetailScreen extends StatefulWidget {
   final String artistId;
@@ -15,12 +17,75 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
   late Future<Map<String, dynamic>> _fetchArtistFuture;
   late Future<List<Map<String, dynamic>>> _fetchSongsFuture;
   final HomeService _homeService = HomeService();
+  bool _isFollowing = false;
+  int _followerCount = 0;
+  int _followingCount = 0;
 
   @override
   void initState() {
     super.initState();
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    _homeService.updateToken(userProvider.token);
     _fetchArtistFuture = _homeService.fetchArtistById(widget.artistId);
     _fetchSongsFuture = _homeService.fetchSongsByArtist(widget.artistId);
+    _checkFollowStatus();
+    print('initState: Initialized with artistId: ${widget.artistId}, token: ${userProvider.token}');
+  }
+
+  Future<void> _checkFollowStatus() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    if (userProvider.user != null) {
+      try {
+        final user = await _homeService.fetchUserById(userProvider.user!.id);
+        final artist = await _homeService.fetchArtistById(widget.artistId);
+        print('checkFollowStatus: User data: $user, Artist data: $artist');
+        setState(() {
+          _isFollowing = (user['following'] as List<dynamic>).contains(widget.artistId);
+          _followingCount = user['followingCount'] ?? 0;
+          _followerCount = artist['followerCount'] ?? 0;
+          print('checkFollowStatus: Updated _isFollowing: $_isFollowing, _followingCount: $_followingCount, _followerCount: $_followerCount');
+        });
+      } catch (e) {
+        print('checkFollowStatus error: $e');
+      }
+    } else {
+      print('checkFollowStatus: No user logged in');
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    if (userProvider.user?.role == 'listener') {
+      try {
+        print('toggleFollow: Attempting to toggle for artistId: ${widget.artistId}, current _isFollowing: $_isFollowing');
+        await userProvider.toggleFollow(widget.artistId, _isFollowing);
+        // Refresh state after toggle
+        final updatedUser = await _homeService.fetchUserById(userProvider.user!.id);
+        final updatedArtist = await _homeService.fetchArtistById(widget.artistId);
+        print('toggleFollow: Updated user: $updatedUser, Updated artist: $updatedArtist');
+        setState(() {
+          _isFollowing = (updatedUser['following'] as List<dynamic>).contains(widget.artistId);
+          _followingCount = updatedUser['followingCount'] ?? _followingCount;
+          _followerCount = updatedArtist['followerCount'] ?? _followerCount;
+          print('toggleFollow: Updated _isFollowing: $_isFollowing, _followingCount: $_followingCount, _followerCount: $_followerCount');
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_isFollowing ? 'You’re now rocking with this artist!' : 'Unfollowed—your rhythm, your rules!'),
+          backgroundColor: _isFollowing ? Colors.green : Colors.grey,
+        ));
+      } catch (e) {
+        print('toggleFollow error: $e');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Oops, hit a wrong note: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Only listeners can follow artists!'),
+        backgroundColor: Colors.orange,
+      ));
+    }
   }
 
   @override
@@ -31,9 +96,9 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'Artist Detial', // Placeholder, will be dynamic from artist data
-          style: const TextStyle(color: Colors.white, fontSize: 18),
+        title: const Text(
+          'Artist Detail',
+          style: TextStyle(color: Colors.white, fontSize: 18),
         ),
         backgroundColor: Colors.black,
         elevation: 0,
@@ -50,6 +115,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: Colors.white));
                 } else if (snapshot.hasError) {
+                  print('FutureBuilder error: ${snapshot.error}');
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -85,7 +151,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     CircleAvatar(
-                      radius: 40, // Smaller size to match Figma design
+                      radius: 40,
                       backgroundColor: Colors.grey[800],
                       child: imageUrl != null
                           ? ClipOval(
@@ -94,7 +160,19 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                                 fit: BoxFit.cover,
                                 width: 80,
                                 height: 80,
-                                errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white, size: 40),
+                                errorBuilder: (context, error, stackTrace) {
+                                  print('Image load error for $imageUrl: $error');
+                                  return const Icon(Icons.person, color: Colors.white, size: 40); // Fallback to icon
+                                },
+                                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                  if (wasSynchronouslyLoaded) return child;
+                                  return AnimatedOpacity(
+                                    opacity: frame == null ? 0 : 1,
+                                    duration: const Duration(milliseconds: 500),
+                                    child: child,
+                                    curve: Curves.easeOut,
+                                  );
+                                },
                               ),
                             )
                           : const Icon(Icons.person, color: Colors.white, size: 40),
@@ -111,7 +189,15 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '1.2M followers', // Placeholder, replace with actual follower count if available
+                      'Followers: $_followerCount',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    Text(
+                      'Following: $_followingCount',
                       style: TextStyle(
                         color: Colors.grey[400],
                         fontSize: 14,
@@ -120,18 +206,23 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton(
-                      onPressed: () {
-                        // Add follow functionality here
-                      },
+                      onPressed: _toggleFollow,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: _isFollowing ? Colors.grey : Colors.green,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                       ),
-                      child: const Text('Follow'),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_isFollowing ? Icons.person_remove : Icons.person_add, size: 20),
+                          const SizedBox(width: 8),
+                          Text(_isFollowing ? 'Unfollow' : 'Follow the Beat!', style: const TextStyle(fontSize: 16)),
+                        ],
+                      ),
                     ),
                   ],
                 );
@@ -153,6 +244,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: Colors.white));
                 } else if (snapshot.hasError) {
+                  print('Songs FutureBuilder error: ${snapshot.error}');
                   return Center(
                     child: Text('Error loading songs: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
                   );
@@ -184,11 +276,14 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              color: Colors.grey[800],
-                              width: 40,
-                              height: 40,
-                            ),
+                            errorBuilder: (context, error, stackTrace) {
+                              print('Song cover load error for ${song['coverImagePath']}: $error');
+                              return Container(
+                                color: Colors.grey[800],
+                                width: 40,
+                                height: 40,
+                              );
+                            },
                           ),
                         ),
                         title: Text(
@@ -203,7 +298,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              song['duration'] ?? '3:45', // Placeholder, replace with actual duration if available
+                              song['duration'] ?? 'N/A',
                               style: TextStyle(color: Colors.grey[400], fontSize: 12),
                             ),
                             const SizedBox(width: 8),

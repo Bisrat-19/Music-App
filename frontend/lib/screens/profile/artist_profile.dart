@@ -7,6 +7,7 @@ import 'package:frontend/screens/artist/artist_dashboard_screen.dart';
 import 'package:frontend/widgets/custom_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+// ignore: deprecated_member_use, avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
 class ArtistProfile extends StatefulWidget {
@@ -92,13 +93,10 @@ class _ArtistProfileState extends State<ArtistProfile> {
     final user = userProvider.user;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF000000), // Black background
+      backgroundColor: const Color(0xFF000000),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
-          'Profile',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        title: Text('Profile', style: Theme.of(context).textTheme.titleLarge),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: Theme.of(context).appBarTheme.elevation,
@@ -108,13 +106,12 @@ class _ArtistProfileState extends State<ArtistProfile> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Profile Picture with Checkmark and Camera Icon
             Stack(
               alignment: Alignment.bottomRight,
               children: [
                 CircleAvatar(
                   radius: 60,
-                  backgroundColor: const Color(0xFF212121), // Dark gray background
+                  backgroundColor: const Color(0xFF212121),
                   child: _image != null
                       ? ClipOval(
                           child: _image is html.File
@@ -157,7 +154,7 @@ class _ArtistProfileState extends State<ArtistProfile> {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1DB954), // Green checkmark background
+                    color: Color(0xFF1DB954),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -181,7 +178,6 @@ class _ArtistProfileState extends State<ArtistProfile> {
               ],
             ),
             const SizedBox(height: 16),
-            // Name
             Text(
               user?.fullName ?? 'Artist',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -191,57 +187,61 @@ class _ArtistProfileState extends State<ArtistProfile> {
                   ),
             ),
             const SizedBox(height: 8),
-            // Followers and Following (Placeholder, to be dynamic later)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Followers Column
-                Column(
+            FutureBuilder<Map<String, dynamic>>(
+              future: user != null ? Future.value(userProvider.user!.toJson()) : Future.value({}),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const CircularProgressIndicator();
+                if (snapshot.hasError) return Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white));
+                final userData = snapshot.data ?? {};
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      '0',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontSize: 20,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    Column(
+                      children: [
+                        Text(
+                          '${userData['followerCount'] ?? 0}',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontSize: 20,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Followers',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Followers',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 16,
-                            color: Colors.white,
-                          ),
+                    const SizedBox(width: 60),
+                    Column(
+                      children: [
+                        Text(
+                          '${userData['followingCount'] ?? 0}',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontSize: 20,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Following',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-                const SizedBox(width: 60), // Space between Followers and Following
-                // Following Column
-                Column(
-                  children: [
-                    Text(
-                      '0',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontSize: 20,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Following',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 16,
-                            color: Colors.white,
-                          ),
-                    ),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
             const SizedBox(height: 20),
-            // Buttons
             if (_image != null)
               CustomButton(
                 text: 'Save Profile Image',
@@ -271,7 +271,7 @@ class _ArtistProfileState extends State<ArtistProfile> {
               text: 'Edit Profile',
               icon: Icons.person,
               trailingIcon: Icons.arrow_forward,
-              color: const Color(0xFF212121), // Dark gray
+              color: const Color(0xFF212121),
               isFullWidth: true,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -284,7 +284,7 @@ class _ArtistProfileState extends State<ArtistProfile> {
               text: 'Get Verified',
               icon: Icons.verified,
               trailingIcon: Icons.arrow_forward,
-              color: const Color(0xFF212121), // Dark gray
+              color: const Color(0xFF212121),
               isFullWidth: true,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -297,7 +297,7 @@ class _ArtistProfileState extends State<ArtistProfile> {
               text: 'Settings',
               icon: Icons.settings,
               trailingIcon: Icons.arrow_forward,
-              color: const Color(0xFF212121), // Dark gray
+              color: const Color(0xFF212121),
               isFullWidth: true,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -310,7 +310,7 @@ class _ArtistProfileState extends State<ArtistProfile> {
               text: 'Help & Support',
               icon: Icons.help,
               trailingIcon: Icons.arrow_forward,
-              color: const Color(0xFF212121), // Dark gray
+              color: const Color(0xFF212121),
               isFullWidth: true,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -323,7 +323,7 @@ class _ArtistProfileState extends State<ArtistProfile> {
               text: 'About',
               icon: Icons.info,
               trailingIcon: Icons.arrow_forward,
-              color: const Color(0xFF212121), // Dark gray
+              color: const Color(0xFF212121),
               isFullWidth: true,
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -332,16 +332,15 @@ class _ArtistProfileState extends State<ArtistProfile> {
               },
             ),
             const SizedBox(height: 24),
-            // Logout Button (Functional)
             CustomButton(
               text: 'Logout',
               icon: Icons.logout,
-              color: const Color(0xFFFF0000), // Red
+              color: const Color(0xFFFF0000),
               isFullWidth: true,
               onPressed: () async {
                 try {
                   print('Logging out...');
-                  userProvider.logout(); // Clear user data
+                  userProvider.logout();
                   print('User logged out. Navigating to login screen...');
                   if (!context.mounted) return;
                   Navigator.pushNamedAndRemoveUntil(

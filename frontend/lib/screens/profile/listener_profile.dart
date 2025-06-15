@@ -6,6 +6,7 @@ import 'package:frontend/providers/user_provider.dart';
 import 'package:frontend/widgets/custom_button.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+// ignore: deprecated_member_use, avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
 class ListenerProfile extends StatefulWidget {
@@ -19,12 +20,16 @@ class ListenerProfileState extends State<ListenerProfile> {
   dynamic _image;
   bool _isLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       if (html.window.navigator.userAgent.contains('Chrome')) {
-        // Fetch the blob data and create a proper html.File
         final xhr = html.HttpRequest();
         xhr.open('GET', pickedFile.path, async: true);
         xhr.responseType = 'blob';
@@ -64,7 +69,7 @@ class ListenerProfileState extends State<ListenerProfile> {
 
       await userProvider.updateProfileImage(
         userProvider.user!.id,
-        _image, // Pass the html.File or io.File directly
+        _image,
       );
 
       setState(() {
@@ -95,10 +100,7 @@ class ListenerProfileState extends State<ListenerProfile> {
       backgroundColor: const Color(0xFF000000),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(
-          'Profile',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        title: Text('Profile', style: Theme.of(context).textTheme.titleLarge),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: Theme.of(context).appBarTheme.elevation,
@@ -188,25 +190,34 @@ class ListenerProfileState extends State<ListenerProfile> {
                   ),
             ),
             const SizedBox(height: 8),
-            Column(
-              children: [
-                Text(
-                  '0',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 20,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Following',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            FutureBuilder<Map<String, dynamic>>(
+              future: user != null ? Future.value(userProvider.user!.toJson()) : Future.value({}),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const CircularProgressIndicator();
+                if (snapshot.hasError) return Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white));
+                final userData = snapshot.data ?? {};
+                final followingCount = user?.following?.length ?? 0; // Calculate from following list if no followingCount
+                return Column(
+                  children: [
+                    Text(
+                      '$followingCount',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontSize: 20,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Following',
+                      style: TextStyle(
                         fontSize: 16,
                         color: Colors.white,
-                  ),
-                ),
-              ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 20),
             if (_image != null)

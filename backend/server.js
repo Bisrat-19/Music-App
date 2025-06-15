@@ -21,7 +21,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/songs', require('./routes/songRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
-app.use('/api/artists', require('./routes/artistRoutes'));
+app.use('/api/artists', require('./routes/artistRoutes')); // Ensure this line is present
 app.use('/api/playlists', require('./routes/playlistRoutes'));
 app.use('/api/watchlist', require('./routes/watchlistRoutes'));
 

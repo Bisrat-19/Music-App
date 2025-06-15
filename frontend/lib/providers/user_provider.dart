@@ -1,4 +1,5 @@
 import 'dart:convert';
+// ignore: deprecated_member_use, avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -8,11 +9,13 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:frontend/config/constants.dart';
 import 'dart:io' as io;
+import 'package:frontend/services/home_service.dart'; // Import HomeService
 
 class UserProvider with ChangeNotifier {
   UserModel? _user;
   String? _token;
   final LocalStorageService _storageService = LocalStorageService();
+  final HomeService _homeService = HomeService(); // Instance of HomeService
 
   UserModel? get user => _user;
   String? get token => _token;
@@ -22,6 +25,7 @@ class UserProvider with ChangeNotifier {
     try {
       _token = await _storageService.getToken();
       print('UserProvider: Token loaded: $_token');
+      _homeService.updateToken(_token); // Pass token to HomeService
       if (_token != null) {
         final userData = await _storageService.getUserData();
         print('UserProvider: User data loaded: $userData');
@@ -39,6 +43,7 @@ class UserProvider with ChangeNotifier {
   void setUser(String token, Map<String, dynamic> userData) {
     _token = token;
     _user = UserModel.fromJson(userData);
+    _homeService.updateToken(_token); // Pass token to HomeService
     print('UserProvider: User set: ${_user?.id}, role: ${_user?.role}, token: $_token');
     _storageService.saveUserData(token, userData);
     notifyListeners();
@@ -47,6 +52,7 @@ class UserProvider with ChangeNotifier {
   void clearUser() {
     _user = null;
     _token = null;
+    _homeService.updateToken(null); // Clear token in HomeService
     print('UserProvider: User cleared');
     _storageService.clearUserData();
     notifyListeners();
@@ -73,10 +79,8 @@ class UserProvider with ChangeNotifier {
         reader.readAsArrayBuffer(image);
         await reader.onLoad.first;
         final bytes = reader.result as Uint8List;
-
         String mimeType = 'image/jpeg';
         if (image.type.contains('png')) mimeType = 'image/png';
-
         request.files.add(http.MultipartFile.fromBytes(
           'profileImage',
           bytes,
@@ -117,7 +121,28 @@ class UserProvider with ChangeNotifier {
       }
     } catch (e) {
       print('UserProvider: Error updating profile image: $e');
-      throw Exception('Error updating profile image: $e');
+      throw e; // Avoid wrapping the exception
+    }
+  }
+
+  Future<void> toggleFollow(String artistId, bool isFollowing) async {
+    if (_user == null || _token == null) throw Exception('User not logged in');
+    try {
+      print('UserProvider: Toggling follow for artistId: $artistId, isFollowing: $isFollowing');
+      final result = await _homeService.toggleFollow(_user!.id, artistId, isFollowing);
+      print('UserProvider: Toggle follow result: $result');
+      if (result['follower'] != null && result['follower'] is Map<String, dynamic>) {
+        _user = UserModel.fromJson(result['follower']);
+        await _storageService.saveUserData(_token!, _user!.toJson());
+        print('UserProvider: Follow status updated for user: ${_user?.id}, followingCount: ${_user?.followingCount}');
+      } else {
+        print('UserProvider: Invalid follower data in result: ${result['follower']}');
+        throw Exception('Invalid follower data received');
+      }
+      notifyListeners();
+    } catch (e) {
+      print('UserProvider: Error toggling follow: $e');
+      throw e; // Avoid wrapping the exception
     }
   }
 }
