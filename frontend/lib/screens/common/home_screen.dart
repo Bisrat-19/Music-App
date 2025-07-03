@@ -11,6 +11,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'library_screen.dart' as libScreen;
 import 'package:frontend/screens/artist/artist_detail_screen.dart';
+import 'package:frontend/screens/player/player_screen.dart'; // New import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -488,6 +489,7 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
                       final song = entry.value;
                       print('Song $index: $song');
                       final audioUrl = '$baseUrl${song['audioPath'] ?? ''}';
+                      final coverImageUrl = '$baseUrl${song['coverImagePath'] ?? ''}';
                       final isInWatchlist = _watchlist.any((w) => w['_id'] == song['_id']);
 
                       return Container(
@@ -496,85 +498,110 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    song['coverImagePath'] != null
-                                        ? '$baseUrl${song['coverImagePath']}'
-                                        : 'https://via.placeholder.com/120x100',
-                                    height: 100,
-                                    width: 120,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Container(
-                                      color: Theme.of(context).colorScheme.surface,
-                                      height: 100,
-                                      width: 120,
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => PlayerScreen(
+                                        songUrl: audioUrl,
+                                        songTitle: song['title'] ?? 'Untitled',
+                                        coverImageUrl: coverImageUrl.isNotEmpty ? coverImageUrl : null,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                Positioned(
-                                  top: 4,
-                                  right: 4,
-                                  child: IconButton(
-                                    icon: Icon(
-                                      isInWatchlist ? Icons.favorite : Icons.favorite_border,
-                                      color: isInWatchlist ? Colors.red : Theme.of(context).colorScheme.onSurface,
-                                      size: 20,
+                                  );
+                                },
+                                child: Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        coverImageUrl.isNotEmpty
+                                            ? coverImageUrl
+                                            : 'https://via.placeholder.com/120x100',
+                                        height: 100,
+                                        width: 120,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: Theme.of(context).colorScheme.surface,
+                                          height: 100,
+                                          width: 120,
+                                        ),
+                                      ),
                                     ),
-                                    onPressed: () => _toggleWatchlist(song['_id']),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: IconButton(
+                                        icon: Icon(
+                                          isInWatchlist ? Icons.favorite : Icons.favorite_border,
+                                          color: isInWatchlist ? Colors.red : Theme.of(context).colorScheme.onSurface,
+                                          size: 20,
+                                        ),
+                                        onPressed: () => _toggleWatchlist(song['_id']),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                             const SizedBox(height: 8),
-                            GestureDetector(
-                              onTap: () {
-                                if (_isPlaying && _currentAudioUrl == audioUrl) {
-                                  _pauseAudio();
-                                } else {
-                                  _playAudio(audioUrl);
-                                }
-                              },
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    _isPlaying && _currentAudioUrl == audioUrl ? Icons.pause : Icons.play_circle,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      song['title'] ?? 'Untitled',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  PopupMenuButton<String>(
-                                    icon: Icon(
-                                      Icons.more_vert,
-                                      color: Theme.of(context).colorScheme.onSurface,
-                                      size: 20,
-                                    ),
-                                    onSelected: (value) {
-                                      if (value == 'add_to_playlist') {
-                                        _showAddToPlaylistDialog(song['_id']);
-                                      }
-                                    },
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(
-                                        value: 'add_to_playlist',
-                                        child: Text('Add to Playlist'),
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => PlayerScreen(
+                                        songUrl: audioUrl,
+                                        songTitle: song['title'] ?? 'Untitled',
+                                        coverImageUrl: coverImageUrl.isNotEmpty ? coverImageUrl : null,
                                       ),
-                                    ],
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                ],
+                                    ),
+                                  );
+                                },
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _isPlaying && _currentAudioUrl == audioUrl ? Icons.pause : Icons.play_circle,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        song['title'] ?? 'Untitled',
+                                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    PopupMenuButton<String>(
+                                      icon: Icon(
+                                        Icons.more_vert,
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                        size: 20,
+                                      ),
+                                      onSelected: (value) {
+                                        if (value == 'add_to_playlist') {
+                                          _showAddToPlaylistDialog(song['_id']);
+                                        }
+                                      },
+                                      itemBuilder: (context) => [
+                                        const PopupMenuItem(
+                                          value: 'add_to_playlist',
+                                          child: Text('Add to Playlist'),
+                                        ),
+                                      ],
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             Text(
@@ -644,7 +671,7 @@ class HomeScreenState extends State<HomeScreen> with libScreen.RefreshableScreen
               print('Artist $index: ${artist['fullName']}, imagePath: $imagePath, imageUrl: $imageUrl');
 
               return MouseRegion(
-                cursor: SystemMouseCursors.click, // Changes cursor to a small hand on hover
+                cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: () {
                     if (artist['_id'] != null) {
