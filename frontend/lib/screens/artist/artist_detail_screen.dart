@@ -3,6 +3,7 @@ import 'package:frontend/config/constants.dart';
 import 'package:frontend/providers/user_provider.dart';
 import 'package:frontend/services/home_service.dart';
 import 'package:provider/provider.dart';
+import 'package:frontend/screens/player/player_screen.dart'; // Import PlayerScreen
 
 class ArtistDetailScreen extends StatefulWidget {
   final String artistId;
@@ -162,7 +163,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                                 height: 80,
                                 errorBuilder: (context, error, stackTrace) {
                                   print('Image load error for $imageUrl: $error');
-                                  return const Icon(Icons.person, color: Colors.white, size: 40); // Fallback to icon
+                                  return const Icon(Icons.person, color: Colors.white, size: 40);
                                 },
                                 frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
                                   if (wasSynchronouslyLoaded) return child;
@@ -264,15 +265,18 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                   itemCount: songs.length,
                   itemBuilder: (context, index) {
                     final song = songs[index];
+                    final audioUrl = '$baseUrl${song['audioPath'] ?? ''}';
+                    final coverImageUrl = song['coverImagePath'] != null ? '$baseUrl${song['coverImagePath']}' : null;
+                    final artistName = song['artistName'] ?? 'Unknown Artist';
+                    final songTitle = song['title'] ?? 'Untitled';
+
                     return Container(
                       margin: const EdgeInsets.symmetric(vertical: 4.0),
                       child: ListTile(
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: Image.network(
-                            song['coverImagePath'] != null
-                                ? '$baseUrl${song['coverImagePath']}'
-                                : 'https://via.placeholder.com/40x40',
+                            coverImageUrl ?? 'https://via.placeholder.com/40x40',
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
@@ -287,11 +291,11 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                           ),
                         ),
                         title: Text(
-                          song['title'] ?? 'Untitled',
+                          songTitle,
                           style: const TextStyle(color: Colors.white, fontSize: 16),
                         ),
                         subtitle: Text(
-                          song['artistName'] ?? 'Unknown Artist',
+                          artistName,
                           style: TextStyle(color: Colors.grey[400], fontSize: 12),
                         ),
                         trailing: Row(
@@ -305,6 +309,18 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                             const Icon(Icons.play_circle, color: Colors.green, size: 20),
                           ],
                         ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PlayerScreen(
+                                songUrl: audioUrl,
+                                songTitle: songTitle,
+                                coverImageUrl: coverImageUrl,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     );
                   },

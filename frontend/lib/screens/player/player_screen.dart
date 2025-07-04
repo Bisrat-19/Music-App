@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:frontend/models/user_model.dart'; // Adjust import based on your structure
 import 'package:provider/provider.dart';
 import 'package:frontend/providers/user_provider.dart';
 
@@ -166,7 +165,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
+    Provider.of<UserProvider>(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
