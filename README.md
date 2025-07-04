@@ -12,7 +12,7 @@
 - 📁 **Library**: Create and manage your own playlists and watchlist
 - 👤 **Authentication**: Register/Login with role selection (Listener, Artist, Admin)
 - 🧑‍🎤 **Artist Dashboard**: Upload songs, manage tracks, track performance
-- 🛠️ **Admin Panel**: Manage users and uploaded music (coming soon)
+- 🛠️ **Admin Panel**: Manage users and uploaded musics
 
 ---
 
